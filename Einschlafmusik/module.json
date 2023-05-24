@@ -1,0 +1,14 @@
+{
+    "id": "{5F7DCE06-A550-3D18-06FF-C08101EF889A}",
+    "name": "Einschlafmusik",
+    "type": 3,
+    "vendor": "UB",
+    "aliases": [
+        "Einschlafmusik"
+    ],
+    "url": "https://github.com/ubittner/Einschlafmusik/tree/main/Einschlafmusik",
+    "parentRequirements": [],
+    "childRequirements": [],
+    "implemented": [],
+    "prefix": "ESM"
+}

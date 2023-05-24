@@ -69,7 +69,7 @@ class Einschlafmusik extends IPSModule
             IPS_CreateVariableProfile($profile, 1);
         }
         IPS_SetVariableProfileIcon($profile, 'Database');
-        IPS_SetVariableProfileValues($profile, 1, 6, 1);
+        IPS_SetVariableProfileValues($profile, 1, 6, 0);
         IPS_SetVariableProfileDigits($profile, 0);
         IPS_SetVariableProfileAssociation($profile, 1, 'Preset 1', '', 0x0000FF);
         IPS_SetVariableProfileAssociation($profile, 2, 'Preset 2', '', 0x0000FF);
@@ -90,7 +90,7 @@ class Einschlafmusik extends IPSModule
             IPS_CreateVariableProfile($profile, 1);
         }
         IPS_SetVariableProfileIcon($profile, 'Hourglass');
-        IPS_SetVariableProfileValues($profile, 0, 120, 0);
+        IPS_SetVariableProfileValues($profile, 15, 120, 0);
         IPS_SetVariableProfileDigits($profile, 0);
         IPS_SetVariableProfileAssociation($profile, 15, '15 Min.', '', 0x0000FF);
         IPS_SetVariableProfileAssociation($profile, 30, '30 Min.', '', 0x0000FF);

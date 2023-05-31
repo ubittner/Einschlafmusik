@@ -1,156 +1,76 @@
 {
     "elements": [
         {
-            "type": "Label",
-            "caption": "Module Name"
+            "type": "RowLayout",
+            "items": [
+                {
+                    "type": "SelectVariable",
+                    "name": "DevicePower",
+                    "caption": "Power (Aus/An)",
+                    "width": "600px",
+                    "validVariableTypes": [
+                        0,
+                        1
+                    ],
+                    "requiredAction": 1,
+                    "onChange": "ESM_ModifyButton($id, 'DevicePowerConfigurationButton', 'ID ' . $DevicePower . ' bearbeiten', $DevicePower);"
+                }
+            ]
         },
         {
-            "type": "Label",
-            "caption": "Version"
+            "type": "RowLayout",
+            "items": [
+                {
+                    "type": "SelectVariable",
+                    "name": "DeviceVolume",
+                    "caption": "Lautstärke",
+                    "width": "600px",
+                    "validVariableTypes": [
+                        0,
+                        1
+                    ],
+                    "requiredAction": 1,
+                    "onChange": "ESM_ModifyButton($id, 'DeviceVolumeConfigurationButton', 'ID ' . $DeviceVolume . ' bearbeiten', $DeviceVolume);"
+                }
+            ]
+        },
+        {
+            "type": "RowLayout",
+            "items": [
+                {
+                    "type": "SelectVariable",
+                    "name": "DevicePresets",
+                    "caption": "Presets",
+                    "width": "600px",
+                    "validVariableTypes": [
+                        0,
+                        1
+                    ],
+                    "requiredAction": 1,
+                    "onChange": "ESM_ModifyButton($id, 'DevicePresetsConfigurationButton', 'ID ' . $DevicePresets . ' bearbeiten', $DevicePresets);"
+                }
+            ]
         },
         {
             "type": "Label",
             "caption": " "
         },
         {
-            "type": "ExpansionPanel",
-            "caption": "Audio",
+            "type": "RowLayout",
             "items": [
                 {
-                    "type": "SelectVariable",
-                    "name": "AudioStatus",
-                    "caption": "Aus / An",
-                    "width": "600px"
-                },
-                {
-                    "type": "SelectVariable",
-                    "name": "AudioVolume",
-                    "caption": "Lautstärke",
-                    "width": "600px"
-                },
-                {
-                    "type": "SelectVariable",
-                    "name": "AudioPreset",
-                    "caption": "Preset",
-                    "width": "600px"
-                }
-            ]
-        },
-        {
-            "type": "ExpansionPanel",
-            "caption": "Wochenplan",
-            "items": [
-                {
-                    "type": "RowLayout",
-                    "items": [
-                        {
-                            "type": "Label",
-                            "caption": "Wochenplan"
-                        }
-                    ]
-                },
-                {
-                    "type": "Label",
-                    "caption": " "
-                },
-                {
-                    "type": "CheckBox",
-                    "name": "UseWeekday",
-                    "caption": "Montag bis Freitag"
-                },
-                {
-                    "type": "SelectTime",
-                    "name": "WeekdayStartTime",
-                    "caption": "Startzeit"
-                },
-                {
-                    "type": "NumberSpinner",
-                    "name": "WeekdayDuration",
-                    "caption": "Dauer",
-                    "suffix": "Minuten",
-                    "minimum": 15,
-                    "maximum": 120
-                },
-                {
-                    "type": "NumberSpinner",
-                    "name": "WeekdayVolume",
-                    "caption": "Lautstärke",
-                    "minimum": 0,
-                    "maximum": 100
-                },
-                {
-                    "type": "NumberSpinner",
-                    "name": "WeekdayPreset",
-                    "caption": "Preset (0 = kein Preset)",
-                    "minimum": 0,
-                    "maximum": 6
-                },
-                {
-                    "type": "Label",
-                    "caption": " "
-                },
-                {
-                    "type": "CheckBox",
-                    "name": "UseWeekend",
-                    "caption": "Samstag und Sonntag"
-                },
-                {
-                    "type": "SelectTime",
-                    "name": "WeekendStartTime",
-                    "caption": "Startzeit"
-                },
-                {
-                    "type": "NumberSpinner",
-                    "name": "WeekendDuration",
-                    "caption": "Dauer",
-                    "suffix": "Minuten",
-                    "minimum": 15,
-                    "maximum": 120
-                },
-                {
-                    "type": "NumberSpinner",
-                    "name": "WeekendVolume",
-                    "caption": "Lautstärke",
-                    "minimum": 0,
-                    "maximum": 100
-                },
-                {
-                    "type": "NumberSpinner",
-                    "name": "WeekendPreset",
-                    "caption": "Preset (0 = kein Preset)",
-                    "minimum": 0,
-                    "maximum": 6
-                },
-                {
-                    "type": "Label",
-                    "caption": " "
-                },
-                {
-                    "type": "PopupButton",
-                    "caption": "Wochenplan erstellen",
-                    "popup": {
-                        "caption": "Wochenplan wirklich erstellen?",
-                        "items": [
-                            {
-                                "type": "Button",
-                                "caption": "Erstellen",
-                                "onClick": "$id = ESM_CreateWeeklySchedule($id, $WeekdayStartTime, $WeekendStartTime);"
-                            }
-                        ]
-                    }
+                    "type": "SelectEvent",
+                    "name": "WeeklySchedule",
+                    "caption": "Wochenplan",
+                    "width": "600px",
+                    "onChange": "ESM_ModifyButton($id, 'WeeklyScheduleConfigurationButton', 'ID ' . $WeeklySchedule . ' bearbeiten', $WeeklySchedule);"
                 }
             ]
         }
     ],
     "actions": [
         {
-            "type": "ExpansionPanel",
-            "caption": "Schaltfunktionen",
-            "items": [
-                {
-                    "type": "TestCenter"
-                }
-            ]
+            "type": "TestCenter"
         }
     ],
     "status": [

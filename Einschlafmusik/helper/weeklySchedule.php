@@ -1,8 +1,8 @@
 <?php
 
 /**
- * @project       Einschlafmusik/Einschlafmusik
- * @file          ESM_WeeklySchedule.php
+ * @project       Einschlafmusik/Einschlafmusik/helper
+ * @file          weeklySchedule.php
  * @author        Ulrich Bittner
  * @copyright     2023 Ulrich Bittner
  * @license       https://creativecommons.org/licenses/by-nc-sa/4.0/ CC BY-NC-SA 4.0
@@ -12,17 +12,77 @@
 
 declare(strict_types=1);
 
-trait ESM_WeeklySchedule
+trait WeeklySchedule
 {
     /**
      * Creates a new weekly schedule.
      *
-     * @param string $WeekdayStartTime
-     * @param string $WeekendStartTime
-     * @return void
-     * @throws Exception
+     * @param string $Events
+     * @return int
+     * ID of the weekly schedule
      */
-    public function CreateWeeklySchedule(string $WeekdayStartTime, string $WeekendStartTime): void
+    public function CreateWeeklySchedule(string $Events): int
+    {
+        //Determine for an existing event first
+        $id = 0;
+        foreach (IPS_GetEventList() as $event) {
+            $objects = IPS_GetObject($event);
+            if (array_key_exists('ObjectInfo', $objects)) {
+                if ($objects['ObjectInfo'] == $this->InstanceID) {
+                    $id = $event;
+                }
+            }
+        }
+        //If event doesn't exist, create a new one
+        if ($id == 0) {
+            $id = IPS_CreateEvent(2);
+            IPS_SetEventActive($id, true);
+            IPS_SetName($id, 'Wochenplan');
+            IPS_SetInfo($id, $this->InstanceID);
+            IPS_SetIcon($id, 'Calendar');
+            IPS_SetParent($id, $this->InstanceID);
+            IPS_SetPosition($id, 50);
+            //Create actions
+            IPS_SetEventScheduleAction($id, 0, 'Aus', 0x000000, '');
+            IPS_SetEventScheduleAction($id, 1, 'An', 0x00FF00, '');
+        }
+        //Delete existing groups first
+        $groups = IPS_GetEvent($id)['ScheduleGroups'];
+        foreach ($groups as $groupID => $group) {
+            IPS_SetEventScheduleGroup($id, $groupID, 0);
+        }
+        //Add new groups next
+        $i = 0;
+        foreach (json_decode($Events, true) as $day) {
+            if ($day['use']) {
+                IPS_SetEventScheduleGroup($id, $i, $day['days']);
+                $time = json_decode($day['startTime']);
+                IPS_SetEventScheduleGroupPoint($id, $i, 0, $time->hour, $time->minute, $time->second, 1);
+                $selectedTime = $time->hour . ':' . $time->minute . ':' . $time->second;
+                $endTime = strtotime('+120 minutes', strtotime($selectedTime));
+                $hour = intval(date('G', $endTime));
+                $minute = intval(date('i', $endTime));
+                $second = intval(date('s', $endTime));
+                IPS_SetEventScheduleGroupPoint($id, $i, 1, $hour, $minute, $second, 0);
+                $i++;
+            }
+        }
+        //Apply changes if necessary
+        IPS_SetProperty($this->InstanceID, 'WeeklySchedule', $id);
+        if (IPS_HasChanges($this->InstanceID)) {
+            IPS_ApplyChanges($this->InstanceID);
+        }
+        return $id;
+    }
+
+    #################### Private
+
+    /**
+     * Deletes the weekly schedule.
+     *
+     * @return void
+     */
+    private function DeleteWeeklySchedule(): void
     {
         //Determine existing event and delete
         foreach (IPS_GetEventList() as $event) {
@@ -35,48 +95,7 @@ trait ESM_WeeklySchedule
                 }
             }
         }
-        //Create
-        $id = IPS_CreateEvent(2);
-        IPS_SetEventActive($id, true);
-        IPS_SetName($id, 'Wochenplan');
-        IPS_SetInfo($id, $this->InstanceID);
-        IPS_SetIcon($id, 'Calendar');
-        IPS_SetParent($id, $this->InstanceID);
-        IPS_SetPosition($id, 50);
-        //Actions
-        IPS_SetEventScheduleAction($id, 0, 'Aus', 0, '');
-        IPS_SetEventScheduleAction($id, 1, 'An', 16750848, '');
-        if ($this->ReadPropertyBoolean('UseWeekday')) {
-            //Monday to Friday (1 + 2 + 4 + 8 + 16 = 31)
-            IPS_SetEventScheduleGroup($id, 0, 31);
-            $time = json_decode($WeekdayStartTime);
-            IPS_SetEventScheduleGroupPoint($id, 0, 0, $time->hour, $time->minute, $time->second, 1);
-            $selectedTime = $time->hour . ':' . $time->minute . ':' . $time->second;
-            $endTime = strtotime('+' . $this->ReadPropertyInteger('WeekdayDuration') . ' minutes', strtotime($selectedTime));
-            $hour = intval(date('G', $endTime));
-            $minute = intval(date('i', $endTime));
-            $second = intval(date('s', $endTime));
-            IPS_SetEventScheduleGroupPoint($id, 0, 1, $hour, $minute, $second, 0);
-        }
-        if ($this->ReadPropertyBoolean('UseWeekend')) {
-            //Saturday and Sunday (32 + 64 = 96)
-            IPS_SetEventScheduleGroup($id, 1, 96);
-            $time = json_decode($WeekendStartTime);
-            IPS_SetEventScheduleGroupPoint($id, 1, 0, $time->hour, $time->minute, $time->second, 1);
-            $selectedTime = $time->hour . ':' . $time->minute . ':' . $time->second;
-            $endTime = strtotime('+' . $this->ReadPropertyInteger('WeekendDuration') . ' minutes', strtotime($selectedTime));
-            $hour = intval(date('G', $endTime));
-            $minute = intval(date('i', $endTime));
-            $second = intval(date('s', $endTime));
-            IPS_SetEventScheduleGroupPoint($id, 1, 1, $hour, $minute, $second, 0);
-        }
-        IPS_SetProperty($this->InstanceID, 'WeeklySchedule', $id);
-        if (IPS_HasChanges($this->InstanceID)) {
-            IPS_ApplyChanges($this->InstanceID);
-        }
     }
-
-    #################### Private
 
     /**
      * Determines the actual action.

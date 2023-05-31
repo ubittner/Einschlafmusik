@@ -13,18 +13,17 @@
 
 declare(strict_types=1);
 
-include_once __DIR__ . '/helper/ESM_autoload.php';
+include_once __DIR__ . '/helper/autoload.php';
 
 class Einschlafmusik extends IPSModule
 {
-    ##### Helper
-    use ESM_Control;
-    use ESM_WeeklySchedule;
+    //Helper
+    use Control;
+    use Presets;
+    use WeeklySchedule;
 
-    ##### Constants
-    private const MODULE_NAME = 'Einschlafmusik';
+    //Constants
     private const MODULE_PREFIX = 'ESM';
-    private const MODULE_VERSION = '1.0-1, 24.05.2023';
 
     public function Create()
     {
@@ -33,44 +32,37 @@ class Einschlafmusik extends IPSModule
 
         ##### Properties
 
-        $this->RegisterPropertyInteger('AudioStatus', 0);
-        $this->RegisterPropertyInteger('AudioVolume', 0);
-        $this->RegisterPropertyInteger('AudioPreset', 0);
+        //Device
+        $this->RegisterPropertyInteger('DevicePower', 0);
+        $this->RegisterPropertyInteger('DeviceVolume', 0);
+        $this->RegisterPropertyInteger('DevicePresets', 0);
+
+        //Weekly schedule
         $this->RegisterPropertyInteger('WeeklySchedule', 0);
-        $this->RegisterPropertyBoolean('UseWeekday', true);
-        $this->RegisterPropertyString('WeekdayStartTime', '{"hour": "22", "minute": "30", "second": "0"}');
-        $this->RegisterPropertyInteger('WeekdayDuration', 60);
-        $this->RegisterPropertyInteger('WeekdayVolume', 10);
-        $this->RegisterPropertyInteger('WeekdayPreset', 0);
-        $this->RegisterPropertyBoolean('UseWeekend', true);
-        $this->RegisterPropertyString('WeekendStartTime', '{"hour": "23", "minute": "30", "second": "0"}');
-        $this->RegisterPropertyInteger('WeekendDuration', 30);
-        $this->RegisterPropertyInteger('WeekendVolume', 10);
-        $this->RegisterPropertyInteger('WeekendPreset', 0);
 
         ##### Variables
 
-        //Sleep timer
-        $id = @$this->GetIDForIdent('SleepTimer');
-        $this->RegisterVariableBoolean('SleepTimer', 'Einschlafmusik', '~Switch', 10);
-        $this->EnableAction('SleepTimer');
+        //Fall asleep music
+        $this->RegisterVariableBoolean('FallAsleepMusic', 'Einschlafmusik', '~Switch', 10);
+        $this->EnableAction('FallAsleepMusic');
 
         //Volume
         $id = @$this->GetIDForIdent('Volume');
         $this->RegisterVariableInteger('Volume', 'Lautstärke', '~Volume', 20);
         $this->EnableAction('Volume');
         if (!$id) {
-            $this->SetValue('Volume', 50);
+            $this->SetValue('Volume', 10);
         }
 
-        //Preset
+        //Presets
         $profile = self::MODULE_PREFIX . '.' . $this->InstanceID . '.Presets';
         if (!IPS_VariableProfileExists($profile)) {
             IPS_CreateVariableProfile($profile, 1);
         }
-        IPS_SetVariableProfileIcon($profile, 'Database');
-        IPS_SetVariableProfileValues($profile, 1, 6, 0);
+        IPS_SetVariableProfileIcon($profile, 'Menu');
+        IPS_SetVariableProfileValues($profile, 0, 6, 0);
         IPS_SetVariableProfileDigits($profile, 0);
+        IPS_SetVariableProfileAssociation($profile, 0, 'Zuletzt wiedergegeben', '', 0xFF0000);
         IPS_SetVariableProfileAssociation($profile, 1, 'Preset 1', '', 0x0000FF);
         IPS_SetVariableProfileAssociation($profile, 2, 'Preset 2', '', 0x0000FF);
         IPS_SetVariableProfileAssociation($profile, 3, 'Preset 3', '', 0x0000FF);
@@ -81,7 +73,7 @@ class Einschlafmusik extends IPSModule
         $this->RegisterVariableInteger('Presets', 'Presets', $profile, 30);
         $this->EnableAction('Presets');
         if (!$id) {
-            $this->SetValue('Presets', 1);
+            $this->SetValue('Presets', 0);
         }
 
         //Duration
@@ -166,31 +158,36 @@ class Einschlafmusik extends IPSModule
 
         //Register references and messages
         $names = [];
-        $names[] = ['propertyName' => 'AudioStatus', 'messageCategory' => VM_UPDATE];
-        $names[] = ['propertyName' => 'AudioVolume', 'messageCategory' => VM_UPDATE];
-        $names[] = ['propertyName' => 'AudioPreset', 'messageCategory' => 0];
+        $names[] = ['propertyName' => 'DevicePower', 'messageCategory' => VM_UPDATE];
+        $names[] = ['propertyName' => 'DeviceVolume', 'messageCategory' => VM_UPDATE];
+        $names[] = ['propertyName' => 'DevicePresets', 'messageCategory' => 0];
         $names[] = ['propertyName' => 'WeeklySchedule', 'messageCategory' => EM_UPDATE];
         foreach ($names as $name) {
             $id = $this->ReadPropertyInteger($name['propertyName']);
             if ($id > 1 && @IPS_ObjectExists($id)) { //0 = main category, 1 = none
                 $this->RegisterReference($id);
-                $this->SendDebug('RegisterMessage', 'ID: ' . $id . ', Name: ' . $name['propertyName'] . ', Message: ' . $name['messageCategory'], 0);
                 if ($name['messageCategory'] != 0) {
-                    $this->SendDebug('RegisterMessage', ' wird ausgeführt', 0);
-                    $this->SendDebug('RegisterMessage', 'ID: ' . $id . ', Message: ' . $name['messageCategory'], 0);
                     $this->RegisterMessage($id, $name['messageCategory']);
                 }
             }
         }
 
-        if (!$this->GetValue('SleepTimer')) {
+        //Hide process finished
+        if (!$this->GetValue('FallAsleepMusic')) {
             @IPS_SetHidden($this->GetIDForIdent('ProcessFinished'), true);
+        }
+
+        //Update presets
+        $this->UpdatePresetsProfile();
+
+        //Check weekly schedule
+        if (!$this->ValidateWeeklySchedule()) {
+            $this->DeleteWeeklySchedule();
         }
     }
 
     public function MessageSink($TimeStamp, $SenderID, $Message, $Data)
     {
-        $this->SendDebug('MessageSink', 'SenderID: ' . $SenderID . ', Message: ' . $Message, 0);
         switch ($Message) {
             case IPS_KERNELSTARTED:
                 $this->KernelReady();
@@ -205,20 +202,26 @@ class Einschlafmusik extends IPSModule
                 //$Data[4] = timestamp value changed
                 //$Data[5] = timestamp last value
 
-                //Audio status
-                $audioStatus = $this->ReadPropertyInteger('AudioStatus');
-                if ($SenderID == $audioStatus) {
-                    if (!GetValue($audioStatus)) {
-                        $this->ToggleSleepTimer(false);
+                //Device power
+                $devicePowerID = $this->ReadPropertyInteger('DevicePower');
+                if ($SenderID == $devicePowerID) {
+                    //Device is powered off
+                    if ($this->GetValue('FallAsleepMusic') && !GetValue($devicePowerID)) {
+                        $this->SendDebug(__FUNCTION__, 'Abbruch, Gerät wurde ausgeschaltet!', 0);
+                        $this->ToggleFallAsleepMusic(false);
                     }
                 }
 
-                //Audio volume
-                $audioVolume = $this->ReadPropertyInteger('AudioVolume');
-                if ($SenderID == $audioVolume) {
-                    if ($this->GetValue('SleepTimer')) {
-                        if (GetValue($audioVolume) > $this->ReadAttributeInteger('CyclingVolume') + 1) {
-                            $this->ToggleSleepTimer(false);
+                //Device volume
+                $deviceVolumeID = $this->ReadPropertyInteger('DeviceVolume');
+                if ($SenderID == $deviceVolumeID) {
+                    if ($this->GetValue('FallAsleepMusic')) {
+                        $this->SendDebug(__FUNCTION__, 'Geräte-Lautstärke: ' . $Data[0], 0);
+                        $deviceVolume = GetValue($deviceVolumeID);
+                        $cyclingVolume = $this->ReadAttributeInteger('CyclingVolume');
+                        if ($deviceVolume != $cyclingVolume) {
+                            $this->SendDebug(__FUNCTION__, 'Abbruch, Geräte-Lautstärke wurde manuell geändert!', 0);
+                            $this->ToggleFallAsleepMusic(false);
                         }
                     }
                 }
@@ -230,8 +233,10 @@ class Einschlafmusik extends IPSModule
                 //$Data[1] = next run
 
                 //Weekly schedule
-                if ($this->DetermineAction() == 1) {
-                    $this->ToggleSleepTimer(true, 1);
+                if ($this->ValidateWeeklySchedule()) {
+                    if ($this->DetermineAction() == 1) {
+                        $this->ToggleFallAsleepMusic(true);
+                    }
                 }
                 break;
 
@@ -244,177 +249,239 @@ class Einschlafmusik extends IPSModule
 
         ##### Elements
 
-        //Module name
-        $data['elements'][0]['caption'] = self::MODULE_NAME;
-
-        //Version
-        $data['elements'][1]['caption'] = 'Version: ' . self::MODULE_VERSION;
-
-        //Weekly schedule
-        $id = $this->ReadPropertyInteger('WeeklySchedule');
+        //Device power
+        $devicePowerID = $this->ReadPropertyInteger('DevicePower');
         $enableButton = false;
-        if ($id > 1 && @IPS_ObjectExists($id)) { //0 = main category, 1 = none
+        if ($devicePowerID > 1 && @IPS_ObjectExists($devicePowerID)) { //0 = main category, 1 = none
             $enableButton = true;
         }
-
-        $data['elements'][4]['items'][0] = [
-            'type'  => 'RowLayout',
-            'items' => [
-                [
-                    'type'     => 'SelectEvent',
-                    'name'     => 'WeeklySchedule',
-                    'caption'  => 'Wochenplan',
-                    'width'    => '600px',
-                    'onChange' => self::MODULE_PREFIX . '_ModifyButton($id, "WeeklyScheduleConfigurationButton", "ID " . $WeeklySchedule . " bearbeiten", $WeeklySchedule);'
-                ],
-                [
-                    'type'    => 'Label',
-                    'caption' => ' '
-                ],
-                [
-                    'type'     => 'OpenObjectButton',
-                    'caption'  => 'ID ' . $id . ' bearbeiten',
-                    'name'     => 'WeeklyScheduleConfigurationButton',
-                    'visible'  => $enableButton,
-                    'objectID' => $id
-                ]
-            ]
+        $data['elements'][0]['items'][1] = [
+            'type'     => 'OpenObjectButton',
+            'caption'  => 'ID ' . $devicePowerID . ' bearbeiten',
+            'name'     => 'DevicePowerConfigurationButton',
+            'visible'  => $enableButton,
+            'objectID' => $devicePowerID
         ];
 
-        ##### Actions
-
-        //Registered messages
-        $registeredMessages = [];
-        $messages = $this->GetMessageList();
-        foreach ($messages as $id => $messageID) {
-            $name = 'Objekt #' . $id . ' existiert nicht';
-            $rowColor = '#FFC0C0'; //red
-            if (@IPS_ObjectExists($id)) {
-                $name = IPS_GetName($id);
-                $rowColor = '#C0FFC0'; //light green
-            }
-            switch ($messageID) {
-                case [10001]:
-                    $messageDescription = 'IPS_KERNELSTARTED';
-                    break;
-
-                case [10603]:
-                    $messageDescription = 'VM_UPDATE';
-                    break;
-
-                case [10803]:
-                    $messageDescription = 'EM_UPDATE';
-                    break;
-
-                default:
-                    $messageDescription = 'keine Bezeichnung';
-            }
-            $registeredMessages[] = [
-                'ObjectID'           => $id,
-                'Name'               => $name,
-                'MessageID'          => $messageID,
-                'MessageDescription' => $messageDescription,
-                'rowColor'           => $rowColor];
+        //Device volume
+        $deviceVolumeID = $this->ReadPropertyInteger('DeviceVolume');
+        $enableButton = false;
+        if ($deviceVolumeID > 1 && @IPS_ObjectExists($deviceVolumeID)) { //0 = main category, 1 = none
+            $enableButton = true;
         }
-
-        $data['actions'][1] = [
-            'type'    => 'ExpansionPanel',
-            'caption' => 'Registrierte Nachrichten',
-            'items'   => [
-                [
-                    'type'     => 'List',
-                    'name'     => 'RegisteredMessages',
-                    'rowCount' => 10,
-                    'sort'     => [
-                        'column'    => 'ObjectID',
-                        'direction' => 'ascending'
-                    ],
-                    'columns' => [
-                        [
-                            'caption' => 'ID',
-                            'name'    => 'ObjectID',
-                            'width'   => '150px',
-                            'onClick' => self::MODULE_PREFIX . '_ModifyButton($id, "RegisteredMessagesConfigurationButton", "ID " . $RegisteredMessages["ObjectID"] . " aufrufen", $RegisteredMessages["ObjectID"]);'
-                        ],
-                        [
-                            'caption' => 'Name',
-                            'name'    => 'Name',
-                            'width'   => '300px',
-                            'onClick' => self::MODULE_PREFIX . '_ModifyButton($id, "RegisteredMessagesConfigurationButton", "ID " . $RegisteredMessages["ObjectID"] . " aufrufen", $RegisteredMessages["ObjectID"]);'
-                        ],
-                        [
-                            'caption' => 'Nachrichten ID',
-                            'name'    => 'MessageID',
-                            'width'   => '150px'
-                        ],
-                        [
-                            'caption' => 'Nachrichten Bezeichnung',
-                            'name'    => 'MessageDescription',
-                            'width'   => '250px'
-                        ]
-                    ],
-                    'values' => $registeredMessages
-                ],
-                [
-                    'type'     => 'OpenObjectButton',
-                    'name'     => 'RegisteredMessagesConfigurationButton',
-                    'caption'  => 'Aufrufen',
-                    'visible'  => false,
-                    'objectID' => 0
-                ]
-            ]
+        $data['elements'][1]['items'][1] = [
+            'type'     => 'OpenObjectButton',
+            'caption'  => 'ID ' . $deviceVolumeID . ' bearbeiten',
+            'name'     => 'DeviceVolumeConfigurationButton',
+            'visible'  => $enableButton,
+            'objectID' => $deviceVolumeID
         ];
 
-        //Registered references
-        $registeredReferences = [];
-        $references = $this->GetReferenceList();
-        foreach ($references as $reference) {
-            $name = 'Objekt #' . $reference . ' existiert nicht';
-            $rowColor = '#FFC0C0'; //red
-            if (@IPS_ObjectExists($reference)) {
-                $name = IPS_GetName($reference);
-                $rowColor = '#C0FFC0'; //light green
-            }
-            $registeredReferences[] = [
-                'ObjectID' => $reference,
-                'Name'     => $name,
-                'rowColor' => $rowColor];
+        //Device presets
+        $devicePresetsID = $this->ReadPropertyInteger('DevicePresets');
+        $enableButton = false;
+        if ($devicePresetsID > 1 && @IPS_ObjectExists($devicePresetsID)) { //0 = main category, 1 = none
+            $enableButton = true;
         }
+        $data['elements'][2]['items'][1] = [
+            'type'     => 'OpenObjectButton',
+            'caption'  => 'ID ' . $devicePresetsID . ' bearbeiten',
+            'name'     => 'DevicePresetsConfigurationButton',
+            'visible'  => $enableButton,
+            'objectID' => $devicePresetsID
+        ];
 
-        $data['actions'][2] = [
-            'type'    => 'ExpansionPanel',
-            'caption' => 'Registrierte Referenzen',
-            'items'   => [
-                [
-                    'type'     => 'List',
-                    'name'     => 'RegisteredReferences',
-                    'rowCount' => 10,
-                    'sort'     => [
-                        'column'    => 'ObjectID',
-                        'direction' => 'ascending'
-                    ],
-                    'columns' => [
-                        [
-                            'caption' => 'ID',
-                            'name'    => 'ObjectID',
-                            'width'   => '150px',
-                            'onClick' => self::MODULE_PREFIX . '_ModifyButton($id, "RegisteredReferencesConfigurationButton", "ID " . $RegisteredReferences["ObjectID"] . " aufrufen", $RegisteredReferences["ObjectID"]);'
-                        ],
-                        [
-                            'caption' => 'Name',
-                            'name'    => 'Name',
-                            'width'   => '300px',
-                            'onClick' => self::MODULE_PREFIX . '_ModifyButton($id, "RegisteredReferencesConfigurationButton", "ID " . $RegisteredReferences["ObjectID"] . " aufrufen", $RegisteredReferences["ObjectID"]);'
+        $data['elements'][2]['items'][2] = [
+            'type'    => 'Button',
+            'caption' => 'Presets aktualisieren',
+            'name'    => 'UpdatePresetsConfigurationButton',
+            'visible' => $enableButton,
+            'onClick' => 'ESM_UpdatePresetsProfile($id);'
+        ];
+
+        //Weekly schedule
+        $weeklyScheduleID = $this->ReadPropertyInteger('WeeklySchedule');
+        $enableButton = false;
+        if ($weeklyScheduleID > 1 && @IPS_ObjectExists($weeklyScheduleID)) { //0 = main category, 1 = none
+            $enableButton = true;
+        }
+        $data['elements'][4]['items'][1] = [
+            'type'     => 'OpenObjectButton',
+            'caption'  => 'ID ' . $weeklyScheduleID . ' bearbeiten',
+            'name'     => 'WeeklyScheduleConfigurationButton',
+            'visible'  => $enableButton,
+            'objectID' => $weeklyScheduleID
+
+        ];
+
+        //Create weekly schedule button
+        $data['elements'][5] = [
+            'type'    => 'PopupButton',
+            'caption' => 'Wochenplan erstellen',
+            'popup'   => [
+                'caption' => 'Wochenplan wirklich erstellen und zuweisen?',
+                'items'   => [
+                    [
+                        'type'  => 'RowLayout',
+                        'items' => [
+                            [
+                                'type'  => 'CheckBox',
+                                'name'  => 'UseMonday',
+                                'value' => true
+                            ],
+                            [
+                                'type'    => 'Label',
+                                'caption' => "Montag\t\t"
+                            ],
+                            [
+                                'type'    => 'SelectTime',
+                                'name'    => 'MondayStartTime',
+                                'caption' => 'Startzeit',
+                                'width'   => '120px',
+                                'value'   => '{"hour": "22", "minute": "30", "second": "00"}'
+                            ]
                         ]
                     ],
-                    'values' => $registeredReferences
-                ],
-                [
-                    'type'     => 'OpenObjectButton',
-                    'name'     => 'RegisteredReferencesConfigurationButton',
-                    'caption'  => 'Aufrufen',
-                    'visible'  => false,
-                    'objectID' => 0
+                    [
+                        'type'  => 'RowLayout',
+                        'items' => [
+                            [
+                                'type'  => 'CheckBox',
+                                'name'  => 'UseTuesday',
+                                'value' => true
+                            ],
+                            [
+                                'type'    => 'Label',
+                                'caption' => "Dienstag\t"
+                            ],
+                            [
+                                'type'    => 'SelectTime',
+                                'name'    => 'TuesdayStartTime',
+                                'caption' => 'Startzeit',
+                                'width'   => '120px',
+                                'value'   => '{"hour": "22", "minute": "30", "second": "00"}'
+                            ]
+                        ]
+                    ],
+                    [
+                        'type'  => 'RowLayout',
+                        'items' => [
+                            [
+                                'type'  => 'CheckBox',
+                                'name'  => 'UseWednesday',
+                                'value' => true
+                            ],
+                            [
+                                'type'    => 'Label',
+                                'caption' => "Mittwoch\t"
+                            ],
+                            [
+                                'type'    => 'SelectTime',
+                                'name'    => 'WednesdayStartTime',
+                                'caption' => 'Startzeit',
+                                'width'   => '120px',
+                                'value'   => '{"hour": "22", "minute": "30", "second": "00"}'
+                            ]
+                        ]
+                    ],
+                    [
+                        'type'  => 'RowLayout',
+                        'items' => [
+                            [
+                                'type'  => 'CheckBox',
+                                'name'  => 'UseThursday',
+                                'value' => true
+                            ],
+                            [
+                                'type'    => 'Label',
+                                'caption' => "Donnerstag\t"
+                            ],
+                            [
+                                'type'    => 'SelectTime',
+                                'name'    => 'ThursdayStartTime',
+                                'caption' => 'Startzeit',
+                                'width'   => '120px',
+                                'value'   => '{"hour": "22", "minute": "30", "second": "00"}'
+                            ]
+                        ]
+                    ],
+                    [
+                        'type'  => 'RowLayout',
+                        'items' => [
+                            [
+                                'type'  => 'CheckBox',
+                                'name'  => 'UseFriday',
+                                'value' => true
+                            ],
+                            [
+                                'type'    => 'Label',
+                                'caption' => "Freitag\t\t"
+                            ],
+                            [
+                                'type'    => 'SelectTime',
+                                'name'    => 'FridayStartTime',
+                                'caption' => 'Startzeit',
+                                'width'   => '120px',
+                                'value'   => '{"hour": "23", "minute": "00", "second": "00"}'
+                            ]
+                        ]
+                    ],
+                    [
+                        'type'  => 'RowLayout',
+                        'items' => [
+                            [
+                                'type'  => 'CheckBox',
+                                'name'  => 'UseSaturday',
+                                'value' => true
+                            ],
+                            [
+                                'type'    => 'Label',
+                                'caption' => "Samstag\t"
+                            ],
+                            [
+                                'type'    => 'SelectTime',
+                                'name'    => 'SaturdayStartTime',
+                                'caption' => 'Startzeit',
+                                'width'   => '120px',
+                                'value'   => '{"hour": "23", "minute": "30", "second": "00"}'
+                            ]
+                        ]
+                    ],
+                    [
+                        'type'  => 'RowLayout',
+                        'items' => [
+                            [
+                                'type'  => 'CheckBox',
+                                'name'  => 'UseSunday',
+                                'value' => true
+                            ],
+                            [
+                                'type'    => 'Label',
+                                'caption' => "Sonntag\t\t"
+                            ],
+                            [
+                                'type'    => 'SelectTime',
+                                'name'    => 'SundayStartTime',
+                                'caption' => 'Startzeit',
+                                'width'   => '120px',
+                                'value'   => '{"hour": "22", "minute": "30", "second": "00"}'
+                            ]
+                        ]
+                    ],
+                    [
+                        'type'    => 'Button',
+                        'caption' => 'Erstellen',
+                        'onClick' => [
+                            '$events["Monday"] = ["days" => 1, "use" => $UseMonday, "startTime" => $MondayStartTime];',
+                            '$events["Tuesday"] = ["days" => 2, "use" => $UseTuesday, "startTime" => $TuesdayStartTime];',
+                            '$events["Wednesday"] = ["days" => 4, "use" => $UseWednesday, "startTime" => $WednesdayStartTime];',
+                            '$events["Thursday"] = ["days" => 8, "use" => $UseThursday, "startTime" => $ThursdayStartTime];',
+                            '$events["Friday"] = ["days" => 16, "use" => $UseFriday, "startTime" => $FridayStartTime];',
+                            '$events["Saturday"] = ["days" => 32, "use" => $UseSaturday, "startTime" => $SaturdayStartTime];',
+                            '$events["Sunday"] = ["days" => 64, "use" => $UseSunday, "startTime" => $SundayStartTime];',
+                            '$eventID = ESM_CreateWeeklySchedule($id, json_encode($events));'
+                        ]
+                    ]
                 ]
             ]
         ];
@@ -446,12 +513,12 @@ class Einschlafmusik extends IPSModule
     public function RequestAction($Ident, $Value)
     {
         switch ($Ident) {
-            case 'SleepTimer':
-                $this->ToggleSleepTimer($Value);
+            case 'FallAsleepMusic':
+                $this->ToggleFallAsleepMusic($Value);
                 break;
 
-            case 'Presets':
             case 'Volume':
+            case 'Presets':
             case 'Duration':
                 $this->SetValue($Ident, $Value);
                 break;

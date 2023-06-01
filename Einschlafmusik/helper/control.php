@@ -74,10 +74,12 @@ trait Control
                 @RequestAction($this->ReadPropertyInteger('DeviceVolume'), $volume);
             }
             //Set device preset
+            $powerOn = true;
             if ($this->CheckDevicePresetsID()) {
                 $devicePresetID = $this->ReadPropertyInteger('DevicePresets');
                 $preset = $this->GetValue('Presets');
-                if ($preset >= 1) {
+                if ($preset > 0) {
+                    $powerOn = false;
                     $setDevicePreset = @RequestAction($devicePresetID, $preset);
                     $this->SendDebug(__FUNCTION__, 'Preset: ' . $preset, 0);
                     //Try again
@@ -87,11 +89,13 @@ trait Control
                 }
             }
             //Power device on
-            $this->SendDebug(__FUNCTION__, 'Gerät einschalten', 0);
-            $powerOnDevice = @RequestAction($this->ReadPropertyInteger('DevicePower'), true);
-            //Try again
-            if (!$powerOnDevice) {
-                @RequestAction($this->ReadPropertyInteger('DevicePower'), true);
+            if ($powerOn) {
+                $this->SendDebug(__FUNCTION__, 'Gerät einschalten', 0);
+                $powerOnDevice = @RequestAction($this->ReadPropertyInteger('DevicePower'), true);
+                //Try again
+                if (!$powerOnDevice) {
+                    @RequestAction($this->ReadPropertyInteger('DevicePower'), true);
+                }
             }
             //Set next cycle
             $this->SetTimerInterval('DecreaseVolume', $this->CalculateNextCycle() * 1000);

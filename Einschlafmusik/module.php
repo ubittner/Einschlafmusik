@@ -172,6 +172,14 @@ class Einschlafmusik extends IPSModule
             }
         }
 
+        //Check presets
+        if (!$this->CheckDevicePresetsID()) {
+            $hideMode = true;
+        } else {
+            $hideMode = false;
+        }
+        @IPS_SetHidden($this->GetIDForIdent('Presets'), $hideMode);
+
         //Hide process finished
         if (!$this->GetValue('FallAsleepMusic')) {
             @IPS_SetHidden($this->GetIDForIdent('ProcessFinished'), true);

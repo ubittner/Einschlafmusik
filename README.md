@@ -13,4 +13,4 @@
 Folgende Module beinhaltet dieses Repository (in alphabetischer Reihenfolge):
 
 - __Einschlafmusik__ ([Dokumentation](Einschlafmusik))  
-  Dieses Modul schaltet ein Gerät und verringert die Lautstärke für ein entspanntes einschlafen.
+  Dieses Modul verringert die Lautstärke für ein entspanntes einschlafen und schaltet ein Gerät aus.

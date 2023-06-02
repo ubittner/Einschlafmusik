@@ -304,7 +304,7 @@ class Einschlafmusik extends IPSModule
             'caption' => 'Presets aktualisieren',
             'name'    => 'UpdatePresetsConfigurationButton',
             'visible' => $enableButton,
-            'onClick' => 'ESM_UpdatePresetsProfile($id);'
+            'onClick' => self::MODULE_PREFIX . '_UpdatePresetsProfile($id);'
         ];
 
         //Weekly schedule

@@ -88,7 +88,7 @@ trait Control
                     }
                 }
             }
-            //Power device on
+            //Power on device
             if ($powerOn) {
                 $this->SendDebug(__FUNCTION__, 'Gerät einschalten', 0);
                 $powerOnDevice = @RequestAction($this->ReadPropertyInteger('DevicePower'), true);
@@ -123,9 +123,9 @@ trait Control
             $this->ToggleFallAsleepMusic(false);
             //Power off device
             $this->SendDebug(__FUNCTION__, 'Gerät ausschalten', 0);
-            $powerOnDevice = @RequestAction($this->ReadPropertyInteger('DevicePower'), false);
+            $powerOffDevice = @RequestAction($this->ReadPropertyInteger('DevicePower'), false);
             //Try again
-            if (!$powerOnDevice) {
+            if (!$powerOffDevice) {
                 @RequestAction($this->ReadPropertyInteger('DevicePower'), false);
             }
             return;

@@ -43,8 +43,12 @@ class Einschlafmusik extends IPSModule
         ##### Variables
 
         //Fall asleep music
+        $id = @$this->GetIDForIdent('FallAsleepMusic');
         $this->RegisterVariableBoolean('FallAsleepMusic', 'Einschlafmusik', '~Switch', 10);
         $this->EnableAction('FallAsleepMusic');
+        if (!$id) {
+            IPS_SetIcon(@$this->GetIDForIdent('FallAsleepMusic'), 'Moon');
+        }
 
         //Volume
         $id = @$this->GetIDForIdent('Volume');
@@ -97,15 +101,24 @@ class Einschlafmusik extends IPSModule
             $this->SetValue('Duration', 30);
         }
 
+        //Last volume
+        $id = @$this->GetIDForIdent('LastVolume');
+        $this->RegisterVariableBoolean('LastVolume', 'Letzte Lautstärke', '~Switch', 50);
+        $this->EnableAction('LastVolume');
+        if (!$id) {
+            IPS_SetIcon(@$this->GetIDForIdent('LastVolume'), 'Speaker');
+        }
+
         //Process finished
         $id = @$this->GetIDForIdent('ProcessFinished');
-        $this->RegisterVariableString('ProcessFinished', 'Schaltvorgang bis', '', 60);
+        $this->RegisterVariableString('ProcessFinished', 'Schaltvorgang bis', '', 70);
         if (!$id) {
             IPS_SetIcon($this->GetIDForIdent('ProcessFinished'), 'Clock');
         }
 
         ##### Attributes
 
+        $this->RegisterAttributeInteger('LastVolume', 0);
         $this->RegisterAttributeInteger('CyclingVolume', 0);
         $this->RegisterAttributeInteger('EndTime', 0);
 
@@ -528,6 +541,7 @@ class Einschlafmusik extends IPSModule
             case 'Volume':
             case 'Presets':
             case 'Duration':
+            case 'LastVolume':
                 $this->SetValue($Ident, $Value);
                 break;
 

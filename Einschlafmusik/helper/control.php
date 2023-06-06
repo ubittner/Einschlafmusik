@@ -42,6 +42,7 @@ trait Control
             IPS_SetDisabled($this->GetIDForIdent('Duration'), false);
             $this->SetValue('ProcessFinished', '');
             @IPS_SetHidden($this->GetIDForIdent('ProcessFinished'), true);
+            $this->WriteAttributeInteger('LastVolume', 0);
             $this->WriteAttributeInteger('CyclingVolume', 0);
             $this->WriteAttributeInteger('EndTime', 0);
             $this->SetTimerInterval('DecreaseVolume', 0);
@@ -64,15 +65,12 @@ trait Control
             @IPS_SetHidden($this->GetIDForIdent('ProcessFinished'), false);
             //Set attributes
             $volume = $this->GetValue('Volume');
+            $this->WriteAttributeInteger('LastVolume', $volume);
             $this->WriteAttributeInteger('CyclingVolume', $volume);
             $this->SendDebug(__FUNCTION__, 'Lautstärke: ' . $volume, 0);
             $this->WriteAttributeInteger('EndTime', $timestamp);
             //Set device volume
-            $setDeviceVolume = @RequestAction($this->ReadPropertyInteger('DeviceVolume'), $volume);
-            //Try again
-            if (!$setDeviceVolume) {
-                @RequestAction($this->ReadPropertyInteger('DeviceVolume'), $volume);
-            }
+            $this->SetDeviceVolume($volume);
             //Set device preset
             $powerOn = true;
             if ($this->CheckDevicePresetsID()) {
@@ -90,12 +88,7 @@ trait Control
             }
             //Power on device
             if ($powerOn) {
-                $this->SendDebug(__FUNCTION__, 'Gerät einschalten', 0);
-                $powerOnDevice = @RequestAction($this->ReadPropertyInteger('DevicePower'), true);
-                //Try again
-                if (!$powerOnDevice) {
-                    @RequestAction($this->ReadPropertyInteger('DevicePower'), true);
-                }
+                $this->PowerDevice(true);
             }
             //Set next cycle
             $this->SetTimerInterval('DecreaseVolume', $this->CalculateNextCycle() * 1000);
@@ -117,37 +110,88 @@ trait Control
         if (!$this->CheckDeviceVolumeID()) {
             return;
         }
+        //Cycling volume
         $cyclingVolume = $this->ReadAttributeInteger('CyclingVolume');
-        //Last cycle
-        if ($cyclingVolume == 1) {
+        $cyclingVolume--;
+        $this->SendDebug(__FUNCTION__, 'Lautstärke: ' . $cyclingVolume, 0);
+        $this->WriteAttributeInteger('CyclingVolume', $cyclingVolume);
+        //Set device volume
+        $setDeviceVolume = @RequestAction($this->ReadPropertyInteger('DeviceVolume'), $cyclingVolume);
+        //Try again
+        if (!$setDeviceVolume) {
+            @RequestAction($this->ReadPropertyInteger('DeviceVolume'), $cyclingVolume);
+        }
+        //Check for last cycle
+        if ($cyclingVolume == 0) {
+            $lastVolume = $this->ReadAttributeInteger('LastVolume');
             $this->ToggleFallAsleepMusic(false);
             //Power off device
-            $this->SendDebug(__FUNCTION__, 'Gerät ausschalten', 0);
-            $powerOffDevice = @RequestAction($this->ReadPropertyInteger('DevicePower'), false);
-            //Try again
-            if (!$powerOffDevice) {
-                @RequestAction($this->ReadPropertyInteger('DevicePower'), false);
+            $this->PowerDevice(false);
+            if ($this->GetValue('LastVolume')) {
+                $this->SendDebug(__FUNCTION__, 'Letzte Lautstärke: ' . $lastVolume . ' einstellen', 0);
+                IPS_Sleep(1000);
+                $this->SetDeviceVolume($lastVolume);
             }
             return;
         }
-        //Cycle
-        $actualDeviceVolume = GetValue($this->ReadPropertyInteger('DeviceVolume'));
-        if ($actualDeviceVolume > 1) {
-            //Decrease volume
-            $decreasedVolume = $cyclingVolume - 1;
-            $this->WriteAttributeInteger('CyclingVolume', $decreasedVolume);
-            $this->SendDebug(__FUNCTION__, 'Lautstärke: ' . $decreasedVolume, 0);
-            $setDeviceVolume = @RequestAction($this->ReadPropertyInteger('DeviceVolume'), $decreasedVolume);
-            //Try again
-            if (!$setDeviceVolume) {
-                @RequestAction($this->ReadPropertyInteger('DeviceVolume'), $decreasedVolume);
-            }
-            //Set next cycle
-            $this->SetTimerInterval('DecreaseVolume', $this->CalculateNextCycle() * 1000);
+        //Set next cycle
+        $this->SetTimerInterval('DecreaseVolume', $this->CalculateNextCycle() * 1000);
+    }
+
+    /**
+     * Powers the device off or on.
+     *
+     * @param bool $State
+     * false =  off,
+     * true =   on
+     *
+     * @return bool
+     * false =  an error occurred,
+     * true =   successful
+     *
+     * @throws Exception
+     */
+    public function PowerDevice(bool $State): bool
+    {
+        $debugText = 'Gerät ausschalten';
+        if ($State) {
+            $debugText = 'Gerät einschalten';
         }
+        $this->SendDebug(__FUNCTION__, $debugText, 0);
+        if (!$this->CheckDevicePowerID()) {
+            return false;
+        }
+        $powerDevice = @RequestAction($this->ReadPropertyInteger('DevicePower'), $State);
+        //Try again
+        if (!$powerDevice) {
+            $powerDevice = @RequestAction($this->ReadPropertyInteger('DevicePower'), $State);
+        }
+        return $powerDevice;
     }
 
     #################### Private
+
+    /**
+     * Sets the volume of the device.
+     *
+     * @param int $Volume
+     * Volume
+     *
+     * @return bool
+     * false =  an error occurred,
+     * true =   successful
+     *
+     * @throws Exception
+     */
+    private function SetDeviceVolume(int $Volume): bool
+    {
+        $setDeviceVolume = @RequestAction($this->ReadPropertyInteger('DeviceVolume'), $Volume);
+        //Try again
+        if (!$setDeviceVolume) {
+            $setDeviceVolume = @RequestAction($this->ReadPropertyInteger('DeviceVolume'), $Volume);
+        }
+        return $setDeviceVolume;
+    }
 
     /**
      * Calculates the next cycle.

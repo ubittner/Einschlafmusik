@@ -116,11 +116,7 @@ trait Control
         $this->SendDebug(__FUNCTION__, 'Lautstärke: ' . $cyclingVolume, 0);
         $this->WriteAttributeInteger('CyclingVolume', $cyclingVolume);
         //Set device volume
-        $setDeviceVolume = @RequestAction($this->ReadPropertyInteger('DeviceVolume'), $cyclingVolume);
-        //Try again
-        if (!$setDeviceVolume) {
-            @RequestAction($this->ReadPropertyInteger('DeviceVolume'), $cyclingVolume);
-        }
+        $this->SetDeviceVolume($cyclingVolume);
         //Check for last cycle
         if ($cyclingVolume == 0) {
             $lastVolume = $this->ReadAttributeInteger('LastVolume');
